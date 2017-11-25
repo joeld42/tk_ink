@@ -157,7 +157,7 @@ class InkDivert( object ):
             targetStr = self.variableDivertName
 
         if (self.conditional):
-            targetStr = targetStr + "COND: " + self.conditional
+            targetStr = targetStr + "COND: " + str(self.conditional)
 
         externalStr = ""
         if (self.external):
@@ -174,6 +174,53 @@ class InkChoicePoint( object ):
     def prettyPrint(self, indent=0):
         printIndented( indent, "CHOICE: %s (flags: %d)" % ( self.choicePath, self.flags) )
 
+class InkVarReference( object ):
+
+    def __init__(self, varName="" ):
+        self.varName = varName
+        self.pathStringForCount = None
+
+    def prettyPrint(self, indent=0):
+        varNameStr = ""
+        countStr = ""
+        if self.varName:
+            varNameStr = self.varName
+            countStr = ""
+        else:
+            varNameStr = "COUNT"
+            countStr = self.pathStringForCount
+
+        printIndented( indent, "VAR REF: %s %s" % (varNameStr, countStr) )
+
+class InkVarAssign( object ):
+
+    def __init__(self, varName, isGlobal=True ):
+        self.varName = varName
+        self.isGlobal = isGlobal
+        self.isNewDecl = True
+
+    def prettyPrint(self, indent=0):
+        globalStr = ""
+        if self.isGlobal:
+            globalStr = "Global"
+
+        printIndented( indent, "VAR ASSIGN: %s %s" % (self.varName, globalStr) )
+
+class InkTag( object ):
+    def __init__(self, tagValue):
+        self.tagValue = tagValue
+
+    def prettyPrint(self, indent=0):
+        printIndented( indent, "TAG: '%s'" % (self.tagValue)  )
+
+class InkList( object ):
+
+    def __init__(self):
+        self.origins = []
+
+    def prettyPrint(self, indent=0):
+        printIndented( indent, "TAG: '%s'" % (self.tagValue)  )
+
 class InkBytecode( object ):
 
     def __init__( self, jsonData ):
@@ -182,7 +229,6 @@ class InkBytecode( object ):
         self.inkVersion = jsonData["inkVersion"]
         print "--------------"
         self.root = self.jsonToInkObject( jsonData["root"])
-        self.root.prettyPrint()
 
 
     # More or less converted directly from ink runtime JTokenToRuntimeObject
@@ -281,11 +327,39 @@ class InkBytecode( object ):
                 return choicePoint
 
             # Variable Reference
-            #variableRef = jtoken.get("VAR?", None )
-            #if variableRef:
-            # EHRE
+            varRef = None
+            if jtoken.get( "VAR?", None):
+                varRef = InkVarReference( jtoken["VAR?"] )
+            elif jtoken.get( "CNT?", None ):
+                varRef = InkVarReference()
+                varRef.pathStringForCount = jtoken["CNT?" ]
+            if varRef:
+                return varRef
+
+            # Variable Assign
+            varAssign = None
+            varAssignName = jtoken.get("VAR=", None )
+            if varAssignName:
+                varAssign = InkVarAssign( varAssignName, True )
+            else:
+                variableRef = jtoken.get("temp=", None )
+                if variableRef:
+                    varAssign = InkVarAssign( jtoken["temp="], False )
+
+            if varAssign:
+                isOldDecl = jtoken.get( "re", None )
+                if isOldDecl:
+                    varAssign.isNewDecl = False
+
+                return varAssign
 
 
+            # Tags
+            if jtoken.get("#", None):
+                tag = InkTag( jtoken["#"])
+                return tag
+
+            # Lists .. TODO
 
             # Didn't expect this
             return InkValue("UNKNOWN (dict '%s')" % jtoken )
@@ -332,8 +406,6 @@ def readInkJson( filename ):
     with codecs.open(filename, 'r', 'utf-8-sig') as fd:
         jsonData = json.load(fd,'utf-8')
 
-    pprint.pprint(jsonData)
-
     return jsonData
 
 if __name__=='__main__':
@@ -344,5 +416,7 @@ if __name__=='__main__':
 
     jsonData = readInkJson( sys.argv[1])
     ink = InkBytecode( jsonData )
-
     print "InkVersion", ink.inkVersion
+    ink.root.prettyPrint()
+
+
