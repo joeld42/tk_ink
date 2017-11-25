@@ -1,0 +1,6 @@
+
+random notes, ignore
+
+Running inklecate on command line:
+/Applications/Unity/Unity.app/Contents/MonoBleedingEdge/bin/mono \
+		/Users/joeld/Toolkits/ink/inklecate.exe filename.ink
